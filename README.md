@@ -6,10 +6,12 @@ Cursor Agent Skill：按已验证的 OpenVPN Access Server 模式搭建或调整
 
 ## 安装
 
-放到 Cursor 个人技能目录，保留这个目录名：
+用 [skills](https://www.npmjs.com/package/skills) 安装：
 
 ```bash
-git clone https://github.com/wukongnotnull/self-hosted-vpn.git ~/.cursor/skills/self-hosted-vpn
+npx skills add wukongnotnull/self-hosted-vpn -a cursor -g -y
 ```
+
+`-a cursor` 装到 Cursor，`-g` 装到用户目录，当前项目和其他项目都能用。只装进当前仓库时去掉 `-g`。
 
 `SKILL.md` 是技能正文。`reference.md` 是验收命令和已经否定的做法。
