@@ -74,7 +74,19 @@ net.ipv4.udp_rmem_min = 16384
 net.ipv4.udp_wmem_min = 16384
 ```
 
-Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开。保存后执行 `systemctl restart x-ui`，再核对 `/usr/local/x-ui/bin/config.json` 里这三项。重启前退出客户端。
+Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开。保存后执行 `systemctl restart x-ui`，再核对 `/usr/local/x-ui/bin/config.json` 里这三项。重启前退出客户端。服务器这两项管的是发往客户端的速率。
+
+客户端上传写在 Hysteria2 节点的 `up`，例如 `50 Mbps`。没写时走 BBR。Clash 把这一行放进订阅的增强脚本，刷新后还在。加载订阅后核心才生效。小火箭要在节点里另填。
+
+上传测速：
+
+```bash
+curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{size_upload}\n" \
+  -X POST --data-binary @/tmp/up10.bin \
+  https://speed.cloudflare.com/__up
+```
+
+10MB 文件是 10000000 字节，30MB 是 30000000 字节。出口用 `curl -4 -sS https://ip.sb` 核对。
 
 ## 3x-ui 误判
 
@@ -87,6 +99,7 @@ Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开�
 | Hysteria2 延迟 Timeout | UDP 没放行，或小火箭没开「允许不安全」 |
 | 延迟是绿色的，`ip.sb` 仍是家里宽带 | 模式不是规则，或节点停在 DIRECT，或系统代理和虚拟网卡都没开 |
 | 延迟正常，视频卡或网页打不开 | 还在用 Reality。切到 Hysteria2。短请求延迟不代表带宽 |
+| 下载已经很快，上传仍慢，30MB 比 10MB 更慢 | 客户端 Hysteria2 没有 `up`，上传在走 BBR。服务器忽略客户端带宽只影响下载 |
 | 只有浏览器走代理 | 开的是系统代理。整台电脑改开虚拟网卡 |
 | 扫了下面那张 VLESS 码 | 只有一条节点，没有大陆直连规则 |
 
@@ -96,5 +109,9 @@ Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开�
 - 用 Reality 当日常节点硬扛两成左右的丢包。
 - 用绿色延迟代替固定大小下载来判断视频卡不卡。
 - 只在面板里保存 Hysteria2 的 `up` / `down` / `ignoreClientBandwidth`，不重启 x-ui 就当它已经生效。
+- 以为忽略客户端带宽就覆盖了上传，于是客户端不写 `up`。没写 `up` 时上传走 BBR。
+- 只改下载到的订阅或 `.yaml`，不写进增强脚本。刷新会把 `up` 冲掉。
+- 用一次 10MB 的尖峰决定 `up`。以 30MB 的有效速率为准，持平或变慢就退回上一档。
+- 为了改客户端 `up` 去重启 x-ui。
 - 虚拟网卡还开着、当前节点就是要重启的那条时，直接 `systemctl restart x-ui`。
 - 把订阅链接、面板路径或管理员密码写进技能。

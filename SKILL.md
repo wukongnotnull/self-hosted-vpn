@@ -1,6 +1,6 @@
 ---
 name: self-hosted-vpn
-description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
+description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
 ---
 
 # 自建 VPN
@@ -134,11 +134,40 @@ MATCH,PROXY
 2. 只给 TCP 开 BBR（`fq` + `bbr`）。Hysteria2 不走这条。BBR 后 Reality 仍可能只有几百 KB/s，不够日常视频。
 3. 日常改走 Hysteria2，并放行它的 UDP。
 4. 加大 UDP 收发缓冲，避免服务器丢掉一串 UDP 包。
-5. 在 3x-ui 里把 Hysteria2 入站的上下行都填成固定速率（这套填过 `50`），打开忽略客户端带宽（`ignoreClientBandwidth`），然后 `systemctl restart x-ui`。面板保存后，运行中的 `/usr/local/x-ui/bin/config.json` 可能还是旧值，重启后再核对这三项。订阅里不必写 `up`/`down`。
+5. 在 3x-ui 里把 Hysteria2 入站的上下行都填成固定速率（这套填过 `50`），打开忽略客户端带宽（`ignoreClientBandwidth`），然后 `systemctl restart x-ui`。面板保存后，运行中的 `/usr/local/x-ui/bin/config.json` 可能还是旧值，重启后再核对这三项。这只固定服务器发往客户端的速率，也就是下载。
 
-填的 `50` 不是实测上限。这套在忽略客户端带宽之后，30MB 下载到过大约 14–17 MB/s。
+填的 `50` 不是下载实测上限。这套在忽略客户端带宽之后，30MB 下载到过大约 14–17 MB/s。
 
-重启 x-ui 之前，先退出客户端或把节点改成直连。虚拟网卡开着且当前节点就是这条 UDP 时，SSH 也在隧道里，服务一重启连接会被掐断。
+### 上传
+
+下载已经固定速率、上传仍慢，而且 30MB 比 10MB 更慢：客户端 Hysteria2 没有 `up`，发送走 BBR。`ignoreClientBandwidth` 不会把客户端改成固定速率。
+
+在客户端节点写 `up`。Clash 刷新订阅会冲掉手改的节点，所以写进 Clash Verge 的增强脚本。小火箭不读这份脚本，要在节点里单独填上传速率。
+
+脚本只改 `type` 为 `hysteria2` 的节点。下面的 `50 Mbps` 是这一套留下的值，下一台机器用自己测出来的数：
+
+```javascript
+function main(config, profileName) {
+  for (const proxy of config.proxies || []) {
+    if (proxy && proxy.type === "hysteria2") {
+      proxy.up = "50 Mbps";
+    }
+  }
+  return config;
+}
+```
+
+字符串要带单位。mihomo 把没有单位的数字当成 Mbps。
+
+改完在 Clash Verge 里重新加载这份订阅，让正在跑的核心读到 `up`。只改脚本、核心仍是旧配置时，测速不会变。这一步不用重启 x-ui。
+
+测上传向 `https://speed.cloudflare.com/__up` 发 POST。10MB 是 10000000 字节，30MB 是 30000000 字节。前后都看 `https://ip.sb`，必须仍是这台服务器。`speed_upload` 是字节每秒：除以 1000000 得 MB/s，再乘 8 得 Mbps。用 30MB 判断有没有越传越慢，不用单次 10MB 的尖峰。
+
+`up` 先设在当时 30MB 速率附近，再往上加一档。30MB 的有效速率还在涨，就再抬。30MB 持平或变慢，退回上一档。
+
+这一套没写 `up` 时，10MB 大约 2 Mbps，30MB 低于 1 Mbps。写成 `50 Mbps` 后，10MB 和 30MB 都大约 27 Mbps。`80 Mbps` 有过一次 10MB 到 49 Mbps，30MB 复测更慢。`150 Mbps` 的 10MB 回到二十多 Mbps。留下 `50 Mbps`。
+
+第 5 步要重启 x-ui 时，先退出客户端或把节点改成直连。虚拟网卡开着且当前节点就是这条 UDP 时，SSH 也在隧道里，服务一重启连接会被掐断。改客户端 `up` 不用做这一步。
 
 sysctl 形状见 [reference.md](reference.md)。
 
