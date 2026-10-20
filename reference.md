@@ -78,6 +78,32 @@ Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开�
 
 客户端上传写在 Hysteria2 节点的 `up`，例如 `50 Mbps`。没写时走 BBR。Clash 把这一行放进订阅的增强脚本，刷新后还在。加载订阅后核心才生效。小火箭要在节点里另填。
 
+Hysteria2 一阵好一阵断、坏包只出现在大包上时，在服务器丢掉超长的入站 UDP。下面的 `8444` 和 `1400` 是这一套留下的值。下一台机器先抓包：阈值要高于 QUIC 初始包（这一套大约 1308），低于路上把包切开的大小（这一套大约 1460）。只丢入站。
+
+```
+iptables -C INPUT -m comment --comment hy2-mtu-cap -j DROP 2>/dev/null || \
+iptables -I INPUT 1 -p udp --dport 8444 -m length --length 1401:65535 \
+  -m comment --comment hy2-mtu-cap -j DROP
+```
+
+`/etc/systemd/system/hy2-mtu-cap.service`，然后 `systemctl daemon-reload` 和 `systemctl enable --now hy2-mtu-cap.service`：
+
+```
+[Unit]
+Description=Drop oversized inbound Hysteria2 UDP packets
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'iptables -C INPUT -m comment --comment hy2-mtu-cap -j DROP 2>/dev/null || iptables -I INPUT 1 -p udp --dport 8444 -m length --length 1401:65535 -m comment --comment hy2-mtu-cap -j DROP'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+改规则时客户端先切到 Reality。虚拟网卡开着时，SSH 也在隧道里。验收看 `nstat -az UdpInCsumErrors` 在传输期间不涨，再用延迟测试和固定大小的下载、上传看速率。
+
 上传测速：
 
 ```bash
@@ -97,6 +123,7 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 | 管理页超时 | 防火墙没放行面板 TCP、订阅 TCP、Reality TCP 或 Hysteria2 UDP。UDP 要单独放行 |
 | Reality 延迟 Timeout，端口是 `443` | 换到专用 TCP 端口。`443` 上还有别的 TLS 时，Reality 认证会失败 |
 | Hysteria2 延迟 Timeout | UDP 没放行，或小火箭没开「允许不安全」 |
+| Hysteria2 一阵好一阵 Error 或 Timeout，Reality 同时正常 | 满尺寸 UDP 包在路上被切开后拼错。看服务器 `UdpInCsumErrors` 是否只在大包上涨。修在服务器，丢掉超长的入站 UDP |
 | 延迟是绿色的，`ip.sb` 仍是家里宽带 | 模式不是规则，或节点停在 DIRECT，或系统代理和虚拟网卡都没开 |
 | 延迟正常，视频卡或网页打不开 | 还在用 Reality。切到 Hysteria2。短请求延迟不代表带宽 |
 | 下载已经很快，上传仍慢，30MB 比 10MB 更慢 | 客户端 Hysteria2 没有 `up`，上传在走 BBR。服务器忽略客户端带宽只影响下载 |
@@ -115,3 +142,9 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 - 为了改客户端 `up` 去重启 x-ui。
 - 虚拟网卡还开着、当前节点就是要重启的那条时，直接 `systemctl restart x-ui`。
 - 把订阅链接、面板路径或管理员密码写进技能。
+- 用 mihomo 的 `udp-mtu` 去缩小 Hysteria2 的 QUIC 包。它只切被代理的 UDP 数据，默认已经是 1197。
+- 在 macOS 上指望配置文件关掉 Hysteria2 的路径 MTU 探测。sing-quic 在 darwin 上会强制打开。
+- 换一个关掉探测的 mihomo 内核来躲过大包。只对这一台电脑有效，Clash Verge 更新会盖掉。
+- 用网卡 MTU 或到服务器的主机路由 MTU 去限制这条 UDP。路由限制不住；网卡改小后电脑自己分片，到服务器照样拼错。
+- 把超长 UDP 的丢弃阈值降到 QUIC 初始包以下。这一套降到 1300 时，握手一起被丢。
+- 对服务器发出的 Hysteria2 UDP 做同样的长度丢弃。握手回应被丢，节点连不上。

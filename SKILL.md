@@ -1,6 +1,6 @@
 ---
 name: self-hosted-vpn
-description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
+description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。Hysteria2 隔一段时间变成 Error 或 Timeout、而 Reality 仍然正常时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
 ---
 
 # 自建 VPN
@@ -170,6 +170,27 @@ function main(config, profileName) {
 第 5 步要重启 x-ui 时，先退出客户端或把节点改成直连。虚拟网卡开着且当前节点就是这条 UDP 时，SSH 也在隧道里，服务一重启连接会被掐断。改客户端 `up` 不用做这一步。
 
 sysctl 形状见 [reference.md](reference.md)。
+
+### 一阵好一阵断
+
+Hysteria2 隔一段时间延迟变成 Error 或 Timeout，同一时刻 Reality 仍正常：先看服务器是不是在收坏掉的大包。不要先改客户端，也不要先改家里的路由器。
+
+在服务器上抓发往 Hysteria2 那个 UDP 端口的包，并看 `nstat -az UdpInCsumErrors`。这一套的现象是：UDP 载荷 1441 字节（IP 总长 1469）里大约三成校验和已经坏了，600 字节以下的包一个都不坏。Mac 上抓到的同样大包，校验和是好的，所以包是出了电脑之后、进服务器之前坏的。路上有一跳按大约 1460 字节把包切开，分片的 IP 编号全是 0，拼回去时把不同包的尾巴接在一起。上传越多，同时在路上的包越多，越容易拼错，于是一阵好一阵断。TCP 的 Reality 几乎没有这种错误。
+
+Xray 没有一项配置能告诉客户端「包不要超过这么大」。mihomo 的 `udp-mtu` 只切被代理转发的 UDP 数据，不管 QUIC 包本身，默认已经是 1197。在 macOS 上，内核用的 sing-quic 会强制打开路径 MTU 探测，配置文件里关不掉。
+
+修在服务器上：只丢发往该 UDP 端口、IP 总长超过阈值的入站包。客户端探测更大的包得不到回应，就停在阈值以下。阈值要高于 QUIC 初始包，低于会被切开的那个大小。这一套初始包大约 1308 字节，切开发生在 1460，阈值留下 1400。客户端随后停在 UDP 载荷大约 1371。规则做成开机自动加上。形状见 [reference.md](reference.md)。
+
+改的时候如果 SSH 正走这条 UDP，先把客户端切到 Reality。虚拟网卡开着时，到服务器的 SSH 也在隧道里。
+
+改完传一截数据，`UdpInCsumErrors` 不涨，延迟测试能过。这一套之后下载大约 30–42 Mbps，上传大约 27 Mbps。改之前坏包大约 29%，下载 38–49 Mbps，上传 14–23 Mbps。
+
+不要做这些：
+
+- 把阈值降到初始包以下。这一套丢过超过 1300 的入站包，握手一起被丢，节点完全连不上。
+- 用同样的办法丢服务器发出去的大包。握手的回应被丢，节点连不上。发出方向原来就是通的。
+- 改电脑网卡的 MTU，或只给服务器地址加一条小 MTU 的路由。路由上的 MTU 限制不住这条 UDP。网卡 MTU 改小之后，电脑自己把大包切开，到服务器照样拼错。
+- 换一个关掉路径 MTU 探测的 mihomo。只对这一台电脑有效，Clash Verge 更新内核会把它盖掉。
 
 网页仍可能慢：每个新连接的 TLS 来回消不掉。下载速度上去不等于首页立刻快。
 
