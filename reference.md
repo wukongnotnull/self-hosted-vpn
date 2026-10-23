@@ -78,7 +78,15 @@ Hysteria2 入站：`up` 和 `down` 都是 `50`，`ignoreClientBandwidth` 打开�
 
 客户端上传写在 Hysteria2 节点的 `up`，例如 `50 Mbps`。没写时走 BBR。Clash 把这一行放进订阅的增强脚本，刷新后还在。加载订阅后核心才生效。小火箭要在节点里另填。
 
-Hysteria2 一阵好一阵断、坏包只出现在大包上时，在服务器丢掉超长的入站 UDP。下面的 `8444` 和 `1400` 是这一套留下的值。下一台机器先抓包：阈值要高于 QUIC 初始包（这一套大约 1308），低于路上把包切开的大小（这一套大约 1460）。只丢入站。
+Hysteria2 一阵好一阵断、坏包只出现在大包上时，入站和发出两个方向都要限制。下面的 `8444` 和 `1400` 是这一套留下的值。下一台机器先抓包：入站丢弃阈值要高于 QUIC 初始包（这一套大约 1308），低于路上把包切开的大小（这一套大约 1460）。
+
+入站用防火墙。发出方向写进 Hysteria2 入站的 `streamSettings`，然后重启 x-ui，再核对 `config.json`：
+
+```json
+"finalmask": { "quicParams": { "disablePathMTUDiscovery": true } }
+```
+
+关掉探测后，这一套服务器发出的 UDP 载荷停在 1280。不要对发出方向做长度丢弃。
 
 ```
 iptables -C INPUT -m comment --comment hy2-mtu-cap -j DROP 2>/dev/null || \
@@ -147,4 +155,5 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 - 换一个关掉探测的 mihomo 内核来躲过大包。只对这一台电脑有效，Clash Verge 更新会盖掉。
 - 用网卡 MTU 或到服务器的主机路由 MTU 去限制这条 UDP。路由限制不住；网卡改小后电脑自己分片，到服务器照样拼错。
 - 把超长 UDP 的丢弃阈值降到 QUIC 初始包以下。这一套降到 1300 时，握手一起被丢。
-- 对服务器发出的 Hysteria2 UDP 做同样的长度丢弃。握手回应被丢，节点连不上。
+- 对服务器发出的 Hysteria2 UDP 做长度丢弃。握手回应被丢，节点连不上。发出方向关掉路径 MTU 探测。
+- 只丢掉超长的入站包，不限制服务器发出的包。下载方向仍是满尺寸，线路差时会掉到每秒几 KB。
