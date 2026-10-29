@@ -122,6 +122,44 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 
 10MB 文件是 10000000 字节，30MB 是 30000000 字节。出口用 `curl -4 -sS https://ip.sb` 核对。
 
+## 3x-ui：错误日志和连接记录
+
+Xray 错误日志写在面板设置 `xrayTemplateConfig` 的 `log` 里，不要只改运行中的 `config.json`。`error` 用文件名 `error.log`，面板会把它放到 `/var/log/x-ui/error.log`。访问日志保持 `none`。
+
+```json
+"log": {
+  "access": "none",
+  "dnsLog": false,
+  "error": "error.log",
+  "loglevel": "warning",
+  "maskAddress": ""
+}
+```
+
+连接记录只看打到本机 Reality TCP 和 Hysteria2 UDP 的流。先安装 `conntrack`，并在 `/etc/sysctl.d/99-conn-log.conf` 里打开计数：
+
+```
+net.netfilter.nf_conntrack_acct=1
+```
+
+用 `conntrack -E -o timestamp,extended -e NEW,UPDATE,DESTROY` 跟着事件。只留下原始方向的目标地址属于这台服务器、目标端口是这两个入站的流。服务器自己出去访问伪装站点的 `443` 丢掉。握手完成写 `event=up`。流销毁时写 `event=down`，并带 `result`、`state`、`duration_s`。TCP 从未进入 `ESTABLISHED` 时结果是 `handshake_timeout`。UDP 从未变成双向时结果是 `no_reply`。其余是 `closed`。UDP 结束时附上这段时间 `UdpInCsumErrors` 的增量，字段名 `host_udp_csum_delta`。
+
+一行的形状：
+
+```
+2026-10-29T11:42:34+08:00 proto=tcp port=443 src=<客户端> sport=<端口> event=up state=ESTABLISHED
+2026-10-29T11:42:42+08:00 proto=tcp port=443 src=<客户端> sport=<端口> event=down result=handshake_timeout state=SYN_RECV duration_s=8.0
+```
+
+服务做成开机自启，进程退出就拉起来。日志按天轮转，保留 30 天，用 `copytruncate`。
+
+```
+[Service]
+ExecStart=/usr/local/sbin/vpn-conn-log
+Restart=always
+RestartSec=2
+```
+
 ## 3x-ui 误判
 
 | 看到的现象 | 实际含义 |
@@ -129,7 +167,11 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 | 订阅导入失败，或管理页 `ERR_EMPTY_RESPONSE` | 先完全退出 Clash。虚拟网卡会把访问面板的流量拐进尚未配好的节点 |
 | 管理页 `ERR_SSL_PROTOCOL_ERROR` | 地址用 `http://`。这个面板没有 TLS |
 | 管理页超时 | 防火墙没放行面板 TCP、订阅 TCP、Reality TCP 或 Hysteria2 UDP。UDP 要单独放行 |
-| Reality 延迟 Timeout，端口是 `443` | 换到专用 TCP 端口。`443` 上还有别的 TLS 时，Reality 认证会失败 |
+| Reality 延迟 Timeout，端口是 `443`，而这台机器的 `443` 上还有别的 TLS | 换到专用 TCP 端口。两个 TLS 叠在同一个 `443` 上时，Reality 认证会失败 |
+| Reality 一直 Error 或 Timeout，Hysteria2 正常，密钥和 `X25519MLKEM768` 都对 | 看 TCP 握手。服务器收到 SYN 并发出 SYN-ACK，客户端却没有 ACK：这个端口的回程回不到家里。换一个从家里握得成、且没有别的 TLS 的端口。这一套因此把 Reality 从 `8443` 改到空着的 `443` |
+| 本机 `nc` 连 Reality 端口显示成功，路由却走 `utun` | 这是 Clash 收下了连接。用物理网卡地址当源地址再试 |
+| 客户端 Error 或 Timeout 的那一秒，`conn.log` 没有记录 | 这次尝试没有到达服务器 |
+| `conn.log` 有 `event=up`，`error.log` 仍是空的，客户端仍是 Error | 传输层是通的。Reality 认证失败时 Xray 常常不写日志 |
 | Hysteria2 延迟 Timeout | UDP 没放行，或小火箭没开「允许不安全」 |
 | Hysteria2 一阵好一阵 Error 或 Timeout，Reality 同时正常 | 满尺寸 UDP 包在路上被切开后拼错。看服务器 `UdpInCsumErrors` 是否只在大包上涨。修在服务器，丢掉超长的入站 UDP |
 | 延迟是绿色的，`ip.sb` 仍是家里宽带 | 模式不是规则，或节点停在 DIRECT，或系统代理和虚拟网卡都没开 |
@@ -141,6 +183,13 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 ## 3x-ui 已经否定的做法
 
 - 把 Reality 放在 `443`，而这台机器的 `443` 上还有别的 TLS。
+- `443` 空着、专用端口的握手回包又回不到家里时，仍坚持留在那个专用端口。
+- 为了端口握得成，把 Reality 改到订阅端口上。
+- 开着虚拟网卡，用本机 `nc` 成功判断 Reality 端口是通的。
+- Reality 一直 Error 时，不看握手回程，先改密钥或 `X25519MLKEM768`。
+- 为了排查客户端 Error，打开 Xray 访问日志。那份日志记目标网站，记不到没握完的连接。
+- 只改运行中的 `config.json` 来打开错误日志。重启 x-ui 时，面板按 `xrayTemplateConfig` 重写这份文件。
+- 用一分钟一次的计数器当作每一次客户端 Error 或 Timeout 的记录。单次测速经常够不到阈值，也看不出是哪一条连接。
 - 用 Reality 当日常节点硬扛两成左右的丢包。
 - 用绿色延迟代替固定大小下载来判断视频卡不卡。
 - 只在面板里保存 Hysteria2 的 `up` / `down` / `ignoreClientBandwidth`，不重启 x-ui 就当它已经生效。

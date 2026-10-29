@@ -1,6 +1,6 @@
 ---
 name: self-hosted-vpn
-description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。Hysteria2 隔一段时间变成 Error 或 Timeout、而 Reality 仍然正常时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
+description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。Hysteria2 隔一段时间变成 Error 或 Timeout、而 Reality 仍然正常时也使用。Reality 延迟是 Error 或 Timeout、而 Hysteria2 仍然正常时也使用。用户要服务器记下客户端的 Error 或 Timeout、以便事后排查时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
 ---
 
 # 自建 VPN
@@ -102,7 +102,7 @@ push "route 119.29.29.29 255.255.255.255 net_gateway"
 
 | | Hysteria2 | VLESS + Reality |
 | --- | --- | --- |
-| 端口 | 单独的 UDP。这套用过 `8444` | 单独的 TCP。这套用过 `8443`。不要放 `443`：该端口上若还有别的 TLS，从家里连过去时 Reality 认证会失败 |
+| 端口 | 单独的 UDP。这套用过 `8444` | 单独的 TCP。这套先用过 `8443`，后来改到 `443`。`443` 上若还有别的 TLS，从家里连过去时 Reality 认证会失败。`443` 空着、而专用端口的握手回包回不到家里时，可以改到 `443`。不要改到订阅端口上 |
 | 参数 | SNI `www.bing.com`，ALPN `h3`，证书自签 | 流控 `xtls-rprx-vision`，伪装站点 `www.cloudflare.com`。客户端握手要带 `X25519MLKEM768`，否则延迟一直 Timeout |
 | 证书 | Clash 订阅里带 `skip-cert-verify: true`。小火箭链接不带这个参数，要在节点里手动打开「允许不安全」 | 认证对不上时，服务器不把流量接进代理，客户端表现为连不上 |
 
@@ -195,6 +195,42 @@ Xray 没有一项配置能告诉客户端「包不要超过这么大」。mihomo
 - 换一个关掉路径 MTU 探测的 mihomo。只对这一台电脑有效，Clash Verge 更新内核会把它盖掉。
 
 网页仍可能慢：每个新连接的 TLS 来回消不掉。下载速度上去不等于首页立刻快。
+
+### Reality 一直 Error
+
+Hysteria2 延迟正常，Reality 一直是 Error 或 Timeout：先看 TCP 握手回不回得来，不要先改密钥或 `X25519MLKEM768`。密钥和 `X25519MLKEM768` 对不上时，服务器同样不接进代理，客户端也是连不上；两种要分开。
+
+虚拟网卡开着时，到服务器地址的路由会走 `utun`，网关是 `198.18.0.1`。这时本机 `nc` 显示连上，只说明 Clash 收下了这个连接。要看端口本身，用物理网卡的地址当源地址去连，例如 `nc -s <物理网卡地址> -G 5`。SSH 同样绑这个地址，服务器上的 `SSH_CLIENT` 应是家里的公网地址。绑不上、`SSH_CLIENT` 仍是服务器自己时，这条 SSH 还在隧道里。
+
+在服务器上抓 Reality 那个 TCP 端口。家里发来的 SYN 到了，服务器发出 SYN-ACK，客户端却一直重传 SYN、没有 ACK：回程被丢掉，不是认证失败。这一套的 `8443` 就是这样；同一时刻订阅端口 `2096` 和空着的 `443` 握得成。`2053`、`2083`、`2087` 这一组也握不成。
+
+换端口之前先在服务器上临时监听，仍用物理网卡源地址从家里试。握得成、而且上面没有别的 TLS 的端口才能用来放 Reality。订阅端口握得成也不能占用。这一套把 Reality 从 `8443` 改到空着的 `443` 之后，延迟测试大约 163 ms。
+
+端口写在面板的入站上，再 `systemctl restart x-ui`，核对运行中的 `config.json`。只改 `config.json` 会被面板用数据库里的入站盖掉。Reality 正是坏的那条时，不要为了重启先把客户端切到 Reality。SSH 绑物理网卡地址，重启掐断 UDP 之后仍能连回去。改完让客户端刷新订阅。只改本机已经导入的配置，下次刷新还会变回旧端口。
+
+### 连接记录
+
+要事后查客户端的 Error 或 Timeout，记客户端和服务器之间的连接，不要开 Xray 访问日志。访问日志记的是进了代理之后的目标网站，而且握手没完成的连接不会出现在里面。
+
+面板默认把 Xray 访问日志设成 `none`，错误日志路径是空的，级别是 `warning`。`/var/log/x-ui/3xui.log` 只有面板和 Xray 的启动。握手没完成时，Xray 一行都不会写。Reality 认证失败也常常不写。
+
+两份日志：
+
+- `/var/log/x-ui/error.log`：Xray 自己打出的 warning 和 error。写在面板设置的 `xrayTemplateConfig` 里，`error` 用 `error.log`，级别保持 `warning`。面板会把这个文件名放到 `/var/log/x-ui/`。改完重启 x-ui，再看运行中的 `config.json`。只改 `config.json`，下次重启会被模板盖掉。
+- `/var/log/x-ui/conn.log`：每一条打到 Reality 的 TCP 和 Hysteria2 的 UDP、且目标地址是这台服务器自己的连接。出去访问伪装站点的 `443` 不要记。需要安装 `conntrack`，并打开 `net.netfilter.nf_conntrack_acct`。形状见 [reference.md](reference.md)。
+
+`conn.log` 里用结果分辨原因：
+
+- `event=up`：握手完成。
+- `event=down result=closed`：这条连接结束，带 `duration_s`。UDP 结束时还有 `host_udp_csum_delta`，是这段时间整台机器新增的坏 UDP 包，不是这一条流单独的数。
+- `event=down result=handshake_timeout`：TCP 请求到了服务器，握手没完成。客户端这时会显示 Error 或 Timeout。
+- `event=down result=no_reply`：UDP 没有形成双向通信。
+
+拿客户端报错的时间去对。有 `handshake_timeout` 或 `no_reply`，就是这次没连上。有 `up` 而客户端仍是 Error，再看同一时刻的 `error.log`。那个时间没有任何记录，说明这次尝试没有到达服务器。
+
+同一家里出口的公网地址相同，Clash Verge 和小火箭只能靠客户端端口区分，日志里没有软件名字。已经保持着的 Hysteria2 会话不会为每次测速另写一行，会话中断或新开时才记。客户端界面上的 Error 原文不会传到服务器。
+
+不要用一分钟一次的计数器代替这份连接记录。计数器看不出会话，单次测速超时也经常够不到阈值。
 
 ### 导入和开关
 
