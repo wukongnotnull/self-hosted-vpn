@@ -1,6 +1,6 @@
 ---
 name: self-hosted-vpn
-description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、或上传越传越慢时也使用。Hysteria2 隔一段时间变成 Error 或 Timeout、而 Reality 仍然正常时也使用。Reality 延迟是 Error 或 Timeout、而 Hysteria2 仍然正常时也使用。用户要服务器记下客户端的 Error 或 Timeout、以便事后排查时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
+description: 在用户要自建 VPN、国内直连或分流、按域名规则分流、给设备发订阅时使用。也在提到 OpenVPN Access Server、OpenVPN Connect、net_gateway、3x-ui、Xray、Hysteria2、VLESS、Reality、Clash Verge、Clash Meta、小火箭时使用。Hysteria2 下载正常但上传慢、上传越传越慢、隔一段时间变成 Error 或 Timeout、或 IPv4 UDP 回包完全丢失时也使用。Reality 延迟是 Error 或 Timeout、而 Hysteria2 仍然正常时也使用。用户要服务器记下客户端的 Error 或 Timeout、以便事后排查时也使用。用户还没指定方案时，先给出 OpenVPN Access Server 和 3x-ui 两种选择。
 ---
 
 # 自建 VPN
@@ -196,6 +196,35 @@ Xray 没有一项配置能告诉客户端「包不要超过这么大」。mihomo
 
 网页仍可能慢：每个新连接的 TLS 来回消不掉。下载速度上去不等于首页立刻快。
 
+### IPv4 UDP 回程完全丢失
+
+Hysteria2 一直 Error 或 Timeout、Reality 正常时，不要把所有 UDP 故障都当成上面的坏大包。先同时抓客户端物理网卡和服务器：
+
+- `UdpInCsumErrors` 只随大包上涨，小包能往返：按「一阵好一阵断」修 MTU。
+- 请求能到服务器，服务器也发出回应，但客户端收不到；几十字节的普通 UDP 回包也丢，且 `UdpInCsumErrors` 不涨：这是 IPv4 UDP 回程问题。改密码、端口、带宽和 MTU 都修不好。
+
+用独立的小包 UDP echo 复核，不要只看 Xray。客户端绑定物理网卡或物理地址，并确认服务器看到的是家里公网地址；虚拟网卡开着时，普通探测可能被 Clash 接走。另测一个海外 UDP 服务，区分「这台服务器的回程坏了」和「家里完全收不到 UDP」。
+
+服务器和家里都具备公网 IPv6 时，优先让 Hysteria2 单独改走 IPv6：
+
+1. 在云控制台给服务器开启 IPv6。提供商可能会自动改网络配置并重启，先把客户端切到 Reality，确认 IPv4 地址不会变化。
+2. 云防火墙另放行全部 IPv6 来源到 Hysteria2 的 UDP 端口。默认开放的 IPv6 常用端口通常不含 UDP `8444`。
+3. 先用普通 UDP echo 验证 IPv6 双向小包，再改节点。服务器要有全局 IPv6 和默认路由，Xray 要能在 IPv6 上收到该端口。
+4. 只把 Hysteria2 的 `server` 改成服务器 IPv6；Reality 继续留在已验证的 IPv4/TCP。Clash 的 YAML 里 IPv6 地址不加方括号。
+5. 把覆盖写进 Clash Verge 增强脚本，刷新订阅后仍保留：
+
+```javascript
+if (proxy && proxy.type === "hysteria2") {
+  proxy.server = "<服务器IPv6>";
+}
+```
+
+6. 重新加载正在运行的核心，切回 `AUTO`。用 `tcpdump` 确认真实会话是 `ip6` + Hysteria2 UDP 端口，再验收延迟、固定大小下载、出口和 `UdpInCsumErrors`。
+
+订阅源如果仍发布 IPv4，增强脚本只修使用该脚本的 Clash 客户端；其他电脑和手机要分别改节点，或让订阅为 Hysteria2 发布独立的 IPv6 地址。不要声称一台电脑恢复就代表所有设备都恢复。
+
+IPv6 路由器不替源主机分片。看到接近 1500 字节的 IPv6 UDP 包本身不等于上面的 IPv4 分片损坏；不要未经抓包验证就把 IPv4 的 `iptables` 长度丢弃规则照搬成 `ip6tables`。
+
 ### Reality 一直 Error
 
 Hysteria2 延迟正常，Reality 一直是 Error 或 Timeout：先看 TCP 握手回不回得来，不要先改密钥或 `X25519MLKEM768`。密钥和 `X25519MLKEM768` 对不上时，服务器同样不接进代理，客户端也是连不上；两种要分开。
@@ -229,6 +258,8 @@ Hysteria2 延迟正常，Reality 一直是 Error 或 Timeout：先看 TCP 握手
 拿客户端报错的时间去对。有 `handshake_timeout` 或 `no_reply`，就是这次没连上。有 `up` 而客户端仍是 Error，再看同一时刻的 `error.log`。那个时间没有任何记录，说明这次尝试没有到达服务器。
 
 同一家里出口的公网地址相同，Clash Verge 和小火箭只能靠客户端端口区分，日志里没有软件名字。已经保持着的 Hysteria2 会话不会为每次测速另写一行，会话中断或新开时才记。客户端界面上的 Error 原文不会传到服务器。
+
+Hysteria2 改走 IPv6 后，连接记录也要监听 IPv6 conntrack 事件，并把服务器 IPv6 识别为本机地址。只记 IPv4 时，`conn.log` 没有记录不能再推出「请求没到服务器」。
 
 不要用一分钟一次的计数器代替这份连接记录。计数器看不出会话，单次测速超时也经常够不到阈值。
 

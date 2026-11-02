@@ -133,6 +133,7 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 - 日常节点是 Hysteria2（UDP）。备用是 VLESS + Reality（TCP）。
 - 小火箭要给 Hysteria2 打开「允许不安全」。
 - 管理页是明文 HTTP，不要写成 `https://`。打开管理页之前先退出 Clash。
+- Hysteria2 的 IPv4 小包请求能到服务器、回包却完全回不到家里时，不要反复改密码或 MTU；双方有公网 IPv6 时，让 Hysteria2 单独走 IPv6，Reality 继续留在 IPv4。
 
 验收：规则模式、节点是 Hysteria2 时，`https://ip.sb` 是这台服务器的公网 IP。百度变慢，多半是解析到了香港或海外，不能单独当成规则坏了。
 

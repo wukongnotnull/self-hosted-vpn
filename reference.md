@@ -122,6 +122,52 @@ curl -4 -o /dev/null -w "time:%{time_total} upload_Bps:%{speed_upload} bytes:%{s
 
 10MB 文件是 10000000 字节，30MB 是 30000000 字节。出口用 `curl -4 -sS https://ip.sb` 核对。
 
+## 3x-ui：Hysteria2 的 IPv4 UDP 回程丢失
+
+先和坏大包区分：
+
+| 信号 | 坏大包 | IPv4 UDP 回程丢失 |
+| --- | --- | --- |
+| 服务器收到客户端请求 | 是 | 是 |
+| 服务器发出回应 | 是 | 是 |
+| 几十字节 UDP echo 能回客户端 | 能 | 不能 |
+| `UdpInCsumErrors` | 大包传输时上涨 | 保持不变 |
+| 修法 | 限制 IPv4 包长和路径 MTU 探测 | 换可用回程；双方支持时让 Hysteria2 单独走 IPv6 |
+
+服务器开启 IPv6 后先核对，不要立刻改订阅：
+
+```bash
+ip -6 -brief address show scope global
+ip -6 route show default
+ss -lunp | grep ':8444'
+```
+
+云防火墙另加一条：来源为全部 IPv6 地址，协议 UDP，端口为 Hysteria2 端口。默认生成的 IPv6 规则通常只有 TCP `22`、`80`、`443`、远程桌面和 ICMPv6，不包含 UDP `8444`。云平台可能要重启实例才能开启 IPv6；操作前切到 Reality，并确认 IPv4 不会改变。
+
+先用临时 UDP echo 验证几十字节的 IPv6 请求和回应都能到。客户端若开着 TUN，绑定物理网卡或物理 IPv6；服务器抓包应看到家里的全局 IPv6，不是代理出口。确认回程后，Clash Verge 增强脚本只覆盖 Hysteria2：
+
+```javascript
+function main(config, profileName) {
+  for (const proxy of config.proxies || []) {
+    if (proxy && proxy.type === "hysteria2") {
+      proxy.server = "<服务器IPv6>";
+    }
+  }
+  return config;
+}
+```
+
+YAML 的 `server` 值直接写 IPv6，不加方括号。重新加载正在运行的核心，不能只保存脚本。验收时同时抓服务器：
+
+```bash
+tcpdump -ni eth0 'ip6 and udp port 8444'
+nstat -az UdpInCsumErrors UdpInErrors
+```
+
+客户端延迟要成功，`AUTO` 要选中 Hysteria2，固定大小下载要完成，`ip.sb` 要显示服务器出口，坏包计数不能上涨。订阅若仍发布 IPv4，脚本只对挂载了它的 Clash 客户端生效；手机和其他电脑仍需单独改，或给 Hysteria2 发布独立 IPv6 地址。
+
+不要因为 IPv6 UDP 载荷达到 1441 字节就照搬 IPv4 的长度丢弃规则。IPv6 路由器不做中间分片；先以双向抓包、实际传输和错误计数判断。
+
 ## 3x-ui：错误日志和连接记录
 
 Xray 错误日志写在面板设置 `xrayTemplateConfig` 的 `log` 里，不要只改运行中的 `config.json`。`error` 用文件名 `error.log`，面板会把它放到 `/var/log/x-ui/error.log`。访问日志保持 `none`。
@@ -143,6 +189,8 @@ net.netfilter.nf_conntrack_acct=1
 ```
 
 用 `conntrack -E -o timestamp,extended -e NEW,UPDATE,DESTROY` 跟着事件。只留下原始方向的目标地址属于这台服务器、目标端口是这两个入站的流。服务器自己出去访问伪装站点的 `443` 丢掉。握手完成写 `event=up`。流销毁时写 `event=down`，并带 `result`、`state`、`duration_s`。TCP 从未进入 `ESTABLISHED` 时结果是 `handshake_timeout`。UDP 从未变成双向时结果是 `no_reply`。其余是 `closed`。UDP 结束时附上这段时间 `UdpInCsumErrors` 的增量，字段名 `host_udp_csum_delta`。
+
+Hysteria2 改走 IPv6 后，记录程序要同时读取 IPv6 conntrack，并把服务器全局 IPv6 当成本机地址。只记录 IPv4 时，`conn.log` 没有该会话不表示请求没有到达服务器。
 
 一行的形状：
 
@@ -174,6 +222,7 @@ RestartSec=2
 | `conn.log` 有 `event=up`，`error.log` 仍是空的，客户端仍是 Error | 传输层是通的。Reality 认证失败时 Xray 常常不写日志 |
 | Hysteria2 延迟 Timeout | UDP 没放行，或小火箭没开「允许不安全」 |
 | Hysteria2 一阵好一阵 Error 或 Timeout，Reality 同时正常 | 满尺寸 UDP 包在路上被切开后拼错。看服务器 `UdpInCsumErrors` 是否只在大包上涨。修在服务器，丢掉超长的入站 UDP |
+| Hysteria2 一直 Timeout，Reality 正常；服务器收发都能看到，几十字节 IPv4 UDP 回包也回不到客户端，坏包计数不涨 | IPv4 UDP 回程丢失。端口、密码和 MTU 不是原因；双方有公网 IPv6 时让 Hysteria2 单独走 IPv6 |
 | 延迟是绿色的，`ip.sb` 仍是家里宽带 | 模式不是规则，或节点停在 DIRECT，或系统代理和虚拟网卡都没开 |
 | 延迟正常，视频卡或网页打不开 | 还在用 Reality。切到 Hysteria2。短请求延迟不代表带宽 |
 | 下载已经很快，上传仍慢，30MB 比 10MB 更慢 | 客户端 Hysteria2 没有 `up`，上传在走 BBR。服务器忽略客户端带宽只影响下载 |
@@ -203,6 +252,10 @@ RestartSec=2
 - 在 macOS 上指望配置文件关掉 Hysteria2 的路径 MTU 探测。sing-quic 在 darwin 上会强制打开。
 - 换一个关掉探测的 mihomo 内核来躲过大包。只对这一台电脑有效，Clash Verge 更新会盖掉。
 - 用网卡 MTU 或到服务器的主机路由 MTU 去限制这条 UDP。路由限制不住；网卡改小后电脑自己分片，到服务器照样拼错。
+- 几十字节 IPv4 UDP 回包也丢、`UdpInCsumErrors` 不涨时，仍反复改 Hysteria2 密码、端口、带宽或 MTU。
+- 只改当前运行配置里的 Hysteria2 IPv6 地址，不写增强脚本；刷新订阅后又回到坏掉的 IPv4。
+- 一台 Clash 客户端通过增强脚本恢复后，就声称同一订阅的手机和其他电脑都已恢复。
+- 未验证 IPv6 是否有同类问题，就把 IPv4 的长度丢弃规则照搬到 `ip6tables`。
 - 把超长 UDP 的丢弃阈值降到 QUIC 初始包以下。这一套降到 1300 时，握手一起被丢。
 - 对服务器发出的 Hysteria2 UDP 做长度丢弃。握手回应被丢，节点连不上。发出方向关掉路径 MTU 探测。
 - 只丢掉超长的入站包，不限制服务器发出的包。下载方向仍是满尺寸，线路差时会掉到每秒几 KB。
