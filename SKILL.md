@@ -53,8 +53,11 @@ description: 部署或排查两种已验证的自建 VPN：OpenVPN Access Server
 - Reality Error、Timeout 或慢：读 [references/reality-diagnostics.md](references/reality-diagnostics.md)。
 - 事后记录连接失败：读 [references/connection-logging.md](references/connection-logging.md)。
 - 已验证但不可复制的实测数据：读 [references/case-studies.md](references/case-studies.md)。
+- 任何写操作的恢复步骤：读 [references/rollback.md](references/rollback.md)。
 
 不要一次加载所有参考文件。只读当前分支需要的文件。
+
+支持范围以 [SUPPORT.md](SUPPORT.md) 为准。版本匹配不能代替能力探测。
 
 ### 4. 只读预检
 

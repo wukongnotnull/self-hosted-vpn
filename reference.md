@@ -8,5 +8,7 @@ This compatibility index preserves the former `reference.md` path. New guidance 
 - [VLESS + Reality diagnostics](references/reality-diagnostics.md)
 - [Connection logging](references/connection-logging.md)
 - [Redacted case studies](references/case-studies.md)
+- [Rollback](references/rollback.md)
+- [Support matrix](SUPPORT.md)
 
 Start from [SKILL.md](SKILL.md). Load only the reference for the active branch of the workflow.
