@@ -1,0 +1,12 @@
+{
+  "id": "stale-subscription",
+  "kind": "client",
+  "contains_sensitive_data": false,
+  "observations": {
+    "subscription_url": "https://vpn.example.invalid/sub/<redacted>",
+    "published_revision": 12,
+    "loaded_revision": 9,
+    "running_core_revision": 9
+  },
+  "expected_classification": "stale_subscription"
+}

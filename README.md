@@ -34,7 +34,7 @@ Agent 不会替你定成某一种。还没指定时，先把这两种摆出来�
 
 还没选定方案时，Agent 先问你要哪一种：
 
-```
+```text
 用户      ❯ 帮我搭一套自建 VPN
 
 skill     ❯ 两种已验证方案，选一个：
@@ -87,7 +87,7 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 
 不需要记命令，直接把下面这段话复制给 Agent：
 
-```
+```text
 帮我安装这个 skill：https://github.com/wukongnotnull/self-hosted-vpn
 ```
 
@@ -188,7 +188,7 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 
 ## 仓库结构
 
-```
+```text
 self-hosted-vpn/
 ├── SKILL.md             # 安全入口与执行状态机
 ├── reference.md         # 旧路径兼容索引

@@ -2,7 +2,7 @@
 
 set -u
 # shellcheck source=scripts/lib.sh
-. "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/lib.sh"
+. "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'
@@ -31,6 +31,14 @@ csum_after=""
 
 valid_tri() {
   case "$1" in yes|no|unknown) return 0 ;; *) return 1 ;; esac
+}
+
+tri_status() {
+  case "$1" in
+    yes) printf pass ;;
+    no) printf fail ;;
+    *) printf unknown ;;
+  esac
 }
 
 while [ "$#" -gt 0 ]; do
@@ -94,9 +102,9 @@ else
   add_check current-udp-checksum-errors info "Linux /proc/net/snmp is unavailable"
 fi
 
-add_check tiny-request "$([ "$request" = yes ] && printf pass || { [ "$request" = no ] && printf fail || printf unknown; })" "$request"
-add_check reply-left "$([ "$reply_left" = yes ] && printf pass || { [ "$reply_left" = no ] && printf fail || printf unknown; })" "$reply_left"
-add_check reply-received "$([ "$reply_received" = yes ] && printf pass || { [ "$reply_received" = no ] && printf fail || printf unknown; })" "$reply_received"
+add_check tiny-request "$(tri_status "$request")" "$request"
+add_check reply-left "$(tri_status "$reply_left")" "$reply_left"
+add_check reply-received "$(tri_status "$reply_received")" "$reply_received"
 
 delta=""
 if [ -n "$csum_before" ] && [ -n "$csum_after" ]; then
