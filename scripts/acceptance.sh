@@ -2,7 +2,7 @@
 
 set -u
 # shellcheck source=scripts/lib.sh
-. "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/lib.sh"
+. "$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)/lib.sh"
 
 usage() {
   cat <<'EOF'

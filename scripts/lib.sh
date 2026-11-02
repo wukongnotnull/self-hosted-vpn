@@ -11,7 +11,7 @@ VPN_EXIT_USAGE=64
 VPN_EXIT_DEPENDENCY=69
 VPN_EXIT_PERMISSION=77
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPORTER="${SCRIPT_DIR}/report.py"
 CHECKS=()
 
