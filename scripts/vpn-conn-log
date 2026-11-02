@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""Log VPN transport outcomes from conntrack events.
+
+Raw client addresses are redacted unless --raw-addresses is explicitly set.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import ipaddress
+import json
+import re
+import shutil
+import subprocess
+import sys
+from collections.abc import Iterable
+from pathlib import Path
+from typing import TextIO
+
+from report import redact_text
+
+
+EVENT = re.compile(r"\[(NEW|UPDATE|DESTROY)\]")
+PAIR = re.compile(r"\b(src|dst|sport|dport)=([^\s]+)")
+
+
+def auto_addresses() -> set[str]:
+    if not shutil.which("ip"):
+        return set()
+    result = subprocess.run(
+        ["ip", "-j", "address", "show"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return set()
+    addresses: set[str] = set()
+    for interface in json.loads(result.stdout):
+        for entry in interface.get("addr_info", []):
+            local = entry.get("local")
+            if local:
+                addresses.add(local)
+    return addresses
+
+
+def safe_address(value: str, raw: bool) -> str:
+    if raw:
+        return value
+    return redact_text(value)
+
+
+def emit(output: TextIO, event: dict[str, object]) -> None:
+    event["timestamp"] = dt.datetime.now(dt.timezone.utc).replace(
+        microsecond=0
+    ).isoformat()
+    json.dump(event, output, ensure_ascii=False, sort_keys=True)
+    output.write("\n")
+    output.flush()
+
+
+def source_lines(args: argparse.Namespace) -> tuple[Iterable[str], subprocess.Popen[str] | None]:
+    if args.input:
+        return Path(args.input).open(encoding="utf-8"), None
+    if not shutil.which("conntrack"):
+        raise RuntimeError("conntrack is required when --input is not used")
+    process = subprocess.Popen(
+        [
+            "conntrack",
+            "-E",
+            "-e",
+            "NEW,UPDATE,DESTROY",
+            "-o",
+            "timestamp,extended",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=sys.stderr,
+        text=True,
+        bufsize=1,
+    )
+    assert process.stdout is not None
+    return process.stdout, process
+
+
+def process_events(args: argparse.Namespace, output: TextIO) -> int:
+    local = set(args.local_address) or auto_addresses()
+    if not local:
+        raise RuntimeError("no local addresses found; pass --local-address")
+    ports = {str(value) for value in (args.reality_port, args.hy2_port) if value}
+    reality_port = str(args.reality_port) if args.reality_port else None
+    flows: dict[tuple[str, str, str, str, str], dict[str, object]] = {}
+    lines, process = source_lines(args)
+
+    try:
+        for line in lines:
+            event_match = EVENT.search(line)
+            if not event_match:
+                continue
+            protocol_match = re.search(r"\b(tcp|udp)\b", line)
+            if not protocol_match:
+                continue
+            protocol = protocol_match.group(1)
+            values = PAIR.findall(line)
+            if len(values) < 4:
+                continue
+            original = dict(values[:4])
+            if original.get("dst") not in local or original.get("dport") not in ports:
+                continue
+
+            key = (
+                protocol,
+                original["src"],
+                original["dst"],
+                original["sport"],
+                original["dport"],
+            )
+            flow = flows.setdefault(
+                key,
+                {
+                    "up": False,
+                    "client": original["src"],
+                    "client_port": original["sport"],
+                    "server_port": original["dport"],
+                    "protocol": protocol,
+                },
+            )
+            event_type = event_match.group(1)
+
+            if event_type == "NEW":
+                emit(
+                    output,
+                    {
+                        "event": "new",
+                        "protocol": protocol,
+                        "server_port": int(original["dport"]),
+                        "client": safe_address(original["src"], args.raw_addresses),
+                        "client_port": int(original["sport"]),
+                    },
+                )
+
+            has_reply = len(values) >= 8 and "[UNREPLIED]" not in line
+            established = protocol == "tcp" and "ESTABLISHED" in line
+            became_up = established or (protocol == "udp" and has_reply)
+            if became_up and not flow["up"]:
+                flow["up"] = True
+                emit(
+                    output,
+                    {
+                        "event": "up",
+                        "protocol": protocol,
+                        "server_port": int(original["dport"]),
+                        "client": safe_address(original["src"], args.raw_addresses),
+                        "client_port": int(original["sport"]),
+                    },
+                )
+
+            if event_type == "DESTROY":
+                if flow["up"]:
+                    result = "closed"
+                elif protocol == "tcp" and original["dport"] == reality_port:
+                    result = "handshake_timeout"
+                else:
+                    result = "no_reply"
+                emit(
+                    output,
+                    {
+                        "event": "down",
+                        "result": result,
+                        "protocol": protocol,
+                        "server_port": int(original["dport"]),
+                        "client": safe_address(original["src"], args.raw_addresses),
+                        "client_port": int(original["sport"]),
+                    },
+                )
+                flows.pop(key, None)
+    finally:
+        if hasattr(lines, "close"):
+            lines.close()  # type: ignore[attr-defined]
+        if process is not None:
+            process.terminate()
+            process.wait(timeout=5)
+    return process.returncode if process is not None and process.returncode else 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reality-port", type=int)
+    parser.add_argument("--hy2-port", type=int)
+    parser.add_argument("--local-address", action="append", default=[])
+    parser.add_argument("--input", help="read captured conntrack text instead of live events")
+    parser.add_argument("--output", default="-")
+    parser.add_argument(
+        "--raw-addresses",
+        action="store_true",
+        help="disable client address redaction; requires an explicit retention decision",
+    )
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    if not args.reality_port and not args.hy2_port:
+        raise SystemExit("at least one protocol port is required")
+    for port in (args.reality_port, args.hy2_port):
+        if port and not 1 <= port <= 65535:
+            raise SystemExit("ports must be between 1 and 65535")
+
+    output = sys.stdout if args.output == "-" else Path(args.output).open("a", encoding="utf-8")
+    try:
+        return process_events(args, output)
+    except (OSError, RuntimeError, json.JSONDecodeError) as exc:
+        print(f"vpn-conn-log: {exc}", file=sys.stderr)
+        return 20
+    finally:
+        if output is not sys.stdout:
+            output.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
