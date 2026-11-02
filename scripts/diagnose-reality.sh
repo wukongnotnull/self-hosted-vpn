@@ -30,6 +30,14 @@ valid_tri() {
   case "$1" in yes|no|unknown) return 0 ;; *) return 1 ;; esac
 }
 
+tri_status() {
+  case "$1" in
+    yes) printf pass ;;
+    no) printf fail ;;
+    *) printf unknown ;;
+  esac
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -82,10 +90,10 @@ else
   add_check listener info "use --port or REALITY_PORT to inspect the listener"
 fi
 
-add_check syn "$([ "$syn" = yes ] && printf pass || { [ "$syn" = no ] && printf fail || printf unknown; })" "$syn"
-add_check synack "$([ "$synack" = yes ] && printf pass || { [ "$synack" = no ] && printf fail || printf unknown; })" "$synack"
-add_check ack "$([ "$ack" = yes ] && printf pass || { [ "$ack" = no ] && printf fail || printf unknown; })" "$ack"
-add_check xray-accepted "$([ "$accepted" = yes ] && printf pass || { [ "$accepted" = no ] && printf fail || printf unknown; })" "$accepted"
+add_check syn "$(tri_status "$syn")" "$syn"
+add_check synack "$(tri_status "$synack")" "$synack"
+add_check ack "$(tri_status "$ack")" "$ack"
+add_check xray-accepted "$(tri_status "$accepted")" "$accepted"
 
 if [ "$syn" = no ]; then
   status=fail

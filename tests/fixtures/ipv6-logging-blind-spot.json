@@ -1,0 +1,15 @@
+{
+  "id": "ipv6-logging-blind-spot",
+  "kind": "connection-logging",
+  "contains_sensitive_data": false,
+  "observations": {
+    "hysteria2_family": 6,
+    "logger_families": [
+      4
+    ],
+    "client_test_succeeded": true,
+    "server_log_event_seen": false,
+    "server": "2001:db8::10"
+  },
+  "expected_classification": "ipv6_logging_blind_spot"
+}

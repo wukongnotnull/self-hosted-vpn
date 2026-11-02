@@ -1,0 +1,14 @@
+{
+  "id": "double-tun",
+  "kind": "client",
+  "contains_sensitive_data": false,
+  "observations": {
+    "active_tuns": [
+      "utun8",
+      "utun9"
+    ],
+    "vpn_server_route": "utun8",
+    "default_route": "en0"
+  },
+  "expected_classification": "multiple_tun"
+}

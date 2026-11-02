@@ -1,0 +1,15 @@
+{
+  "id": "ipv4-udp-return-loss",
+  "kind": "hysteria2",
+  "contains_sensitive_data": false,
+  "observations": {
+    "family": 4,
+    "request_seen": true,
+    "reply_left": true,
+    "reply_received": false,
+    "checksum_before": 25,
+    "checksum_after": 25,
+    "alternate_udp_service_works": true
+  },
+  "expected_classification": "ipv4_udp_return_path_loss"
+}

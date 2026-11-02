@@ -1,0 +1,15 @@
+{
+  "id": "udp-not-allowed",
+  "kind": "hysteria2",
+  "contains_sensitive_data": false,
+  "observations": {
+    "server": "203.0.113.10",
+    "port": 8444,
+    "cloud_udp_rule": false,
+    "request_seen": false,
+    "reply_left": false,
+    "reply_received": false,
+    "checksum_delta": 0
+  },
+  "expected_classification": "udp_not_allowed"
+}

@@ -1,0 +1,5 @@
+[NEW] udp 17 30 src=198.51.100.20 dst=203.0.113.10 sport=50000 dport=8444 [UNREPLIED] src=203.0.113.10 dst=198.51.100.20 sport=8444 dport=50000
+[UPDATE] udp 17 29 src=198.51.100.20 dst=203.0.113.10 sport=50000 dport=8444 src=203.0.113.10 dst=198.51.100.20 sport=8444 dport=50000
+[DESTROY] udp 17 src=198.51.100.20 dst=203.0.113.10 sport=50000 dport=8444 src=203.0.113.10 dst=198.51.100.20 sport=8444 dport=50000
+[NEW] tcp 6 120 SYN_SENT src=198.51.100.30 dst=203.0.113.10 sport=51000 dport=443 [UNREPLIED] src=203.0.113.10 dst=198.51.100.30 sport=443 dport=51000
+[DESTROY] tcp 6 src=198.51.100.30 dst=203.0.113.10 sport=51000 dport=443 [UNREPLIED] src=203.0.113.10 dst=198.51.100.30 sport=443 dport=51000

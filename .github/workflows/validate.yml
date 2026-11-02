@@ -1,0 +1,61 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  skill:
+    name: skill / fixtures / secrets
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate skill structure, links and redaction
+        run: python3 scripts/validate_skill.py
+
+      - name: Run offline diagnostic tests
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Check Python syntax
+        run: python3 -m compileall -q scripts tests
+
+  shell:
+    name: shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends shellcheck
+
+      - name: Check shell scripts
+        run: shellcheck -x scripts/*.sh
+
+  markdown:
+    name: markdown
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli2@0.18.1

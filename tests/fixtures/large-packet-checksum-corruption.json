@@ -1,0 +1,14 @@
+{
+  "id": "large-packet-checksum-corruption",
+  "kind": "hysteria2",
+  "contains_sensitive_data": false,
+  "observations": {
+    "family": 4,
+    "small_reply_received": true,
+    "large_reply_received": false,
+    "large_threshold_bytes": 1440,
+    "checksum_before": 100,
+    "checksum_after": 108
+  },
+  "expected_classification": "large_packet_checksum_corruption"
+}

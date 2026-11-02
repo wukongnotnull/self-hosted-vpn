@@ -1,0 +1,12 @@
+{
+  "id": "port-occupied",
+  "kind": "preflight",
+  "contains_sensitive_data": false,
+  "observations": {
+    "protocol": "udp",
+    "port": 8444,
+    "port_in_use": true,
+    "listener": "synthetic-process"
+  },
+  "expected_classification": "port_conflict"
+}
