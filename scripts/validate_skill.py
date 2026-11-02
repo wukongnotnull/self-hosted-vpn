@@ -245,6 +245,25 @@ def validate_modes(errors: list[str]) -> None:
             errors.append(f"{name}: executable bit is not set")
 
 
+def validate_release_metadata(errors: list[str]) -> None:
+    required = ("CHANGELOG.md", "LICENSE", "RELEASING.md", "SUPPORT.md")
+    for name in required:
+        if not (ROOT / name).is_file():
+            errors.append(f"{name}: required release file is missing")
+    if (ROOT / "CHANGELOG.md").is_file():
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        if "## [Unreleased]" not in changelog:
+            errors.append("CHANGELOG.md: missing Unreleased section")
+    if (ROOT / "SUPPORT.md").is_file():
+        support = (ROOT / "SUPPORT.md").read_text(encoding="utf-8")
+        if not re.search(r"Last verified: \d{4}-\d{2}-\d{2}\.", support):
+            errors.append("SUPPORT.md: missing last-verified date")
+    if (ROOT / "LICENSE").is_file():
+        license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+        if not license_text.startswith("MIT License"):
+            errors.append("LICENSE: expected MIT license text")
+
+
 def main() -> int:
     errors: list[str] = []
     validate_frontmatter(errors)
@@ -252,6 +271,7 @@ def main() -> int:
     validate_secrets(errors)
     validate_fixtures(errors)
     validate_modes(errors)
+    validate_release_metadata(errors)
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

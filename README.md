@@ -61,6 +61,8 @@ skill     ❯ 两种已验证方案，选一个：
 
 同一份 `SKILL.md` 可在 Claude Code、Cursor、Codex、Gemini CLI 等宿主上跑。差别只是发现目录。
 
+安装最新版：
+
 ```bash
 npx skills add wukongnotnull/self-hosted-vpn --all -g
 ```
@@ -72,6 +74,26 @@ npx skills add wukongnotnull/self-hosted-vpn -g -a claude-code -y
 ```
 
 Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `-g` 则只装进当前项目。
+
+生产环境建议固定版本：
+
+```bash
+git clone --depth 1 --branch v1.0.0 \
+  https://github.com/wukongnotnull/self-hosted-vpn.git self-hosted-vpn-v1.0.0
+npx skills add ./self-hosted-vpn-v1.0.0 --all -g
+```
+
+更新、卸载和回滚：
+
+```bash
+# 更新到最新版
+npx skills update self-hosted-vpn -g -y
+
+# 卸载
+npx skills remove self-hosted-vpn -g -y
+
+# 回滚：卸载后，按上面的固定版本命令安装上一个安全 tag
+```
 
 装好后重启或重新扫描 Agent。
 
@@ -88,7 +110,7 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 不需要记命令，直接把下面这段话复制给 Agent：
 
 ```text
-帮我安装这个 skill：https://github.com/wukongnotnull/self-hosted-vpn
+帮我安装这个固定版本的 skill：https://github.com/wukongnotnull/self-hosted-vpn/tree/v1.0.0
 ```
 
 安装完成后，用自然语言告诉它你想要什么：
@@ -195,8 +217,14 @@ self-hosted-vpn/
 ├── references/          # 按方案和故障类型拆分的参考
 ├── scripts/             # 只读诊断、验收和校验工具
 ├── tests/fixtures/      # 脱敏故障样本
+├── SUPPORT.md           # 已验证组合、负例和 fresh-VM 清单
+├── CHANGELOG.md         # 版本变更
+├── RELEASING.md         # 发布与回滚流程
+├── LICENSE              # MIT
 └── README.md
 ```
+
+正式支持范围和最后验证日期见 [SUPPORT.md](SUPPORT.md)。未知环境先能力探测，无法确认就停止。
 
 ---
 
