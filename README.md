@@ -116,8 +116,8 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 
 默认全隧道走海外出口。中国大陆网段只写在 Access Server 的 **Server Config Directives** 里，用 `push "route … net_gateway"` 直连。DNS 留在 VPN 服务器上。
 
-- 管理后台 `https://<服务器>:943/admin`，用户从 `https://<服务器>:943/` 下载配置。
-- 传输优先 UDP 1194；家宽拦截 UDP 时走 TCP 443。
+- 管理后台只通过 SSH 隧道或管理员来源白名单访问，用户门户与管理入口分开。
+- 传输优先 UDP；家宽拦截 UDP 时使用已验证的 TCP 备用端口。
 - 全隧道必须保持打开。关掉之后海外流量也不会进 VPN。
 - 不要在 `.ovpn` 里手写 `route`。OpenVPN Connect 会丢掉这些行。
 
@@ -131,8 +131,8 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 - 模式用 **规则**。小火箭的全局路由用 **配置**。
 - 订阅里大陆规则在前：`GEOIP,CN,DIRECT`、`GEOSITE,CN,DIRECT`，末尾才是代理。
 - 日常节点是 Hysteria2（UDP）。备用是 VLESS + Reality（TCP）。
-- 小火箭要给 Hysteria2 打开「允许不安全」。
-- 管理页是明文 HTTP，不要写成 `https://`。打开管理页之前先退出 Clash。
+- Hysteria2 使用自签证书时，小火箭只对该节点打开「允许不安全」，不要全局关闭校验。
+- 管理页是明文 HTTP 时只通过 SSH 隧道或来源白名单访问，不对全网开放。
 - Hysteria2 的 IPv4 小包请求能到服务器、回包却完全回不到家里时，不要反复改密码或 MTU；双方有公网 IPv6 时，让 Hysteria2 单独走 IPv6，Reality 继续留在 IPv4。
 
 验收：规则模式、节点是 Hysteria2 时，`https://ip.sb` 是这台服务器的公网 IP。百度变慢，多半是解析到了香港或海外，不能单独当成规则坏了。
@@ -143,52 +143,46 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 
 ## 操作步骤
 
-两条路都从买服务器开始。选好方案后，按对应的一组做完。中间任何问题都交给 Agent。
+两条路都先建立安全的服务器管理入口。不要把 root 密码、私钥、订阅令牌或面板密码发给 Agent。
 
 ### OpenVPN Access Server
 
-1. **选地区。** 找一个离自己国家近的服务器，或者限制比较少的服务器。美区服务器上，很多 AI 工具没有限制。
-2. **费用。** 一个人使用的独线不要买多贵的，每月 10 美元之内的服务器完全足够。
-3. **搭建服务器。** 购买后选择 Ubuntu 或 CentOS 安装，然后设置服务器的 root 登录密码。
-4. **Agent 操控服务器。** 在自己的电脑上新建一个文件夹，用任何 Agent 工具打开它，在对话框里输入：
+1. **选服务器。** 选择已验证矩阵中的 Linux 系统，并确认提供商有控制台或 VNC 恢复入口。
+2. **创建管理员。** 使用普通用户、SSH 密钥和按需 `sudo`；云控制台保存公钥，不共享私钥。
+3. **核对指纹。** 第一次 SSH 连接时通过云控制台核对主机指纹。
+4. **让 Agent 预检。** 在对话框里只提供非敏感信息：
 
 ```text
-使用 ssh 方式连接该服务器，服务器的 IP 是：xxx，root 账号的密码是 xxxx。
+使用 SSH 密钥连接服务器。主机别名是 <SSH_HOST_ALIAS>，请先只读预检，不要修改。
 ```
 
-连接成功后，Agent 就可以操控这台服务器。
-
-5. **使用 OpenVPN Access Server。** 在对话框里输入：
+5. **选择 OpenVPN。** 在对话框里输入：
 
 ```text
-帮我使用 OpenVPN Access Server ，搭建 VPN 。
+使用 OpenVPN Access Server 搭建 VPN。修改前先给出备份、回滚和验收方案。
 ```
 
-6. **搞定。** 整个过程遇到任何问题，都让 Agent 帮你解决。技术小白也不要害怕。
+6. **确认变更。** Agent 展示端口、云防火墙和回滚方案后再批准执行。
 
 ### 3x-ui
 
-1. **选地区。** 找一个离自己国家近的服务器，或者限制比较少的服务器。美区服务器上，很多 AI 工具没有限制。
-2. **费用。** 一个人使用的独线不要买多贵的，每月 10 美元之内。便宜一点可以选每月 2–3 美元。
-3. **搭建服务器。** 购买后选择 Ubuntu 或 CentOS 安装，设置服务器管理员的账号和密码。
-4. **Agent 操控服务器。** 在自己的电脑上新建一个文件夹，用任何 Agent 工具打开它，在对话框里输入：
+1. **选服务器。** 使用已验证系统，并确认 IPv4/IPv6、云防火墙和恢复控制台能力。
+2. **创建管理员。** 使用普通用户、SSH 密钥和按需 `sudo`。
+3. **核对指纹。** 第一次 SSH 连接时通过云控制台核对主机指纹。
+4. **让 Agent 预检。** 在对话框里输入：
 
 ```text
-使用 ssh 方式连接该服务器，服务器的 IP 是：xxx，管理员账号的密码是 xxxx。
+使用 SSH 密钥连接服务器。主机别名是 <SSH_HOST_ALIAS>，请先只读预检，不要修改。
 ```
-
-连接成功后，Agent 就可以操控这台服务器。
 
 5. **使用 3x-ui。** 在对话框里输入：
 
 ```text
-帮我使用 3x-ui 搭建个人 VPN ，防火墙按协议放行，走 UDP 和加大 UDP 缓冲来提速。
+使用 3x-ui 搭建个人 VPN。管理面不得暴露给全网；修改前先给出备份、回滚和验收方案。
 ```
 
-6. **搞定。** 整个过程遇到任何问题，都让 Agent 帮你解决。
-7. **客户端。** macOS / Windows / Linux 用 Clash Verge Rev；Android 用 Clash Meta for Android；iPhone 用小火箭 Shadowrocket。
-
-实测速度 40–60 Mbps，看 1080P 视频没有压力。
+6. **确认变更。** Agent 展示端口、地址族、客户端和回滚方案后再批准执行。
+7. **客户端。** 只使用支持矩阵中验证过的版本；未知版本先能力探测。
 
 ---
 
@@ -196,8 +190,11 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 
 ```
 self-hosted-vpn/
-├── SKILL.md        # 两种方案的正文（各宿主共用）
-├── reference.md    # 验收命令、内核参数形状、已经否定的做法
+├── SKILL.md             # 安全入口与执行状态机
+├── reference.md         # 旧路径兼容索引
+├── references/          # 按方案和故障类型拆分的参考
+├── scripts/             # 只读诊断、验收和校验工具
+├── tests/fixtures/      # 脱敏故障样本
 └── README.md
 ```
 
