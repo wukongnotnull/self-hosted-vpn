@@ -2,6 +2,8 @@
 
 Last verified: 2026-11-02.
 
+The IPv4-preferring `direct` outbound was verified on the same server baseline on 2026-11-25. The fresh-VM acceptance was not repeated for that change.
+
 Runtime capability detection takes priority over version strings. A matching version does not override a failed preflight.
 
 ## Fully verified path
@@ -10,7 +12,7 @@ Runtime capability detection takes priority over version strings. A matching ver
 | --- | --- | --- |
 | Server | Ubuntu 24.04, Linux 6.8, amd64 | systemd, `ip`, `ss`, conntrack, IPv4 and global IPv6 |
 | Panel | 3x-ui 3.8.5 | panel-managed inbounds, persistent Xray template, database backup |
-| Proxy core | Xray 26.9.9 | Hysteria2, VLESS + Reality, `finalmask.quicParams.disablePathMTUDiscovery` |
+| Proxy core | Xray 26.9.9 | Hysteria2, VLESS + Reality, `finalmask.quicParams.disablePathMTUDiscovery`, `streamSettings.sockopt.domainStrategy` on the `freedom` outbound |
 | Agent host | Cursor 3.27.22 on macOS 27.2, arm64 | SSH-key administration, local diagnostics and profile reload |
 | Desktop client | Clash Verge Rev 2.5.8 | subscription, enhancement script, rule mode, TUN |
 | Client core | mihomo 1.19.32 | Hysteria2, VLESS Reality, Unix controller, fixed client upload value |

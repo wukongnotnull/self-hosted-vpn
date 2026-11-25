@@ -78,9 +78,9 @@ Cursor 用 `cursor`，Codex 用 `codex`，Gemini CLI 用 `gemini-cli`。去掉 `
 生产环境建议固定版本：
 
 ```bash
-git clone --depth 1 --branch v1.0.0 \
-  https://github.com/wukongnotnull/self-hosted-vpn.git self-hosted-vpn-v1.0.0
-npx skills add ./self-hosted-vpn-v1.0.0 --all -g
+git clone --depth 1 --branch v1.1.0 \
+  https://github.com/wukongnotnull/self-hosted-vpn.git self-hosted-vpn-v1.1.0
+npx skills add ./self-hosted-vpn-v1.1.0 --all -g
 ```
 
 更新、卸载和回滚：
@@ -110,7 +110,7 @@ npx skills remove self-hosted-vpn -g -y
 不需要记命令，直接把下面这段话复制给 Agent：
 
 ```text
-帮我安装这个固定版本的 skill：https://github.com/wukongnotnull/self-hosted-vpn/tree/v1.0.0
+帮我安装这个固定版本的 skill：https://github.com/wukongnotnull/self-hosted-vpn/tree/v1.1.0
 ```
 
 安装完成后，用自然语言告诉它你想要什么：

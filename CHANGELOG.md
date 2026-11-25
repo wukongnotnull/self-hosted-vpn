@@ -4,6 +4,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-25
+
 ### Added
 
 - Exit location diagnostics for dual-stack servers whose IPv6 exit is geolocated differently from IPv4, with an IPv4-preferring outbound fix, acceptance and rollback.
@@ -32,5 +34,6 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Required explicit confirmation and rollback preparation before mutations.
 - Limited insecure TLS guidance to a single self-signed Hysteria2 node.
 
-[Unreleased]: https://github.com/wukongnotnull/self-hosted-vpn/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/wukongnotnull/self-hosted-vpn/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/wukongnotnull/self-hosted-vpn/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/wukongnotnull/self-hosted-vpn/releases/tag/v1.0.0
