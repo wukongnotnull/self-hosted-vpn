@@ -63,6 +63,22 @@ On one path, SYN reached a dedicated TCP port and SYN-ACK left, but the client n
 
 Lesson: do not rotate Reality keys for a TCP handshake that never completes.
 
+## IPv6 exit geolocated to another region
+
+On one dual-stack VPS:
+
+- an AI coding assistant returned HTTP 403 with reason `UNSUPPORTED_LOCATION`;
+- the account region and the IPv4 exit were both in the supported country;
+- an IPv4-only hostname of the provider answered normally, while its IPv6-only and dual-stack hostnames redirected to a regional site;
+- the client ran mihomo in fake-ip mode, so the server resolved names and connected over IPv6;
+- the `direct` outbound had no domain strategy.
+
+Setting the outbound to prefer IPv4 in the panel template fixed the dual-stack hostname, and lookups reported the IPv4 exit. The first attempt used the outbound-level setting, which the installed Xray reported as deprecated; it was moved under `sockopt`.
+
+Two process mistakes were recorded. The SSH session ran through the node and was closed by the restart. A wildcard path inside a root-only directory was expanded by the unprivileged shell, matched nothing, and stopped the command chain before the restart.
+
+Lesson: an IP lookup showing the right country proves one address family only. Test the provider's own hostnames per family before touching the account or the node. See [exit-geo-diagnostics.md](exit-geo-diagnostics.md).
+
 ## Values intentionally omitted
 
 Production IPs, IPv6 addresses, subscription paths, UUIDs, passwords, keys and administrator paths are excluded. Keep new case studies similarly redacted.
