@@ -6,6 +6,7 @@ This compatibility index preserves the former `reference.md` path. New guidance 
 - [3x-ui deployment and clients](references/3xui.md)
 - [Hysteria2 diagnostics](references/hy2-diagnostics.md)
 - [VLESS + Reality diagnostics](references/reality-diagnostics.md)
+- [Exit location diagnostics](references/exit-geo-diagnostics.md)
 - [Connection logging](references/connection-logging.md)
 - [Redacted case studies](references/case-studies.md)
 - [Rollback](references/rollback.md)

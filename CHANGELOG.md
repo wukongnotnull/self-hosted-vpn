@@ -4,6 +4,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Added
+
+- Exit location diagnostics for dual-stack servers whose IPv6 exit is geolocated differently from IPv4, with an IPv4-preferring outbound fix, acceptance and rollback.
+- Case study for a location rejection caused by the IPv6 exit.
+
 ## [1.0.0] - 2026-11-02
 
 ### Added

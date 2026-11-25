@@ -1,6 +1,6 @@
 ---
 name: self-hosted-vpn
-description: 部署或排查两种已验证的自建 VPN：OpenVPN Access Server，或 3x-ui/Xray + Hysteria2 + VLESS Reality。用于大陆直连分流、订阅、Clash Verge/Meta/小火箭、UDP Timeout、Reality Error、慢速和连接记录。不要用于一般 VPN 产品比较、无关的 Xray 配置，或要求改成 WireGuard 的任务。
+description: 部署或排查两种已验证的自建 VPN：OpenVPN Access Server，或 3x-ui/Xray + Hysteria2 + VLESS Reality。用于大陆直连分流、订阅、Clash Verge/Meta/小火箭、UDP Timeout、Reality Error、慢速、出口地区被误判（如 UNSUPPORTED_LOCATION）和连接记录。不要用于一般 VPN 产品比较、无关的 Xray 配置，或要求改成 WireGuard 的任务。
 ---
 
 # 自建 VPN
@@ -51,6 +51,7 @@ description: 部署或排查两种已验证的自建 VPN：OpenVPN Access Server
 - 3x-ui 部署、订阅和客户端：读 [references/3xui.md](references/3xui.md)。
 - Hysteria2 慢、Error、Timeout：读 [references/hy2-diagnostics.md](references/hy2-diagnostics.md)。
 - Reality Error、Timeout 或慢：读 [references/reality-diagnostics.md](references/reality-diagnostics.md)。
+- 节点正常，但服务提示所在地区不支持：读 [references/exit-geo-diagnostics.md](references/exit-geo-diagnostics.md)。
 - 事后记录连接失败：读 [references/connection-logging.md](references/connection-logging.md)。
 - 已验证但不可复制的实测数据：读 [references/case-studies.md](references/case-studies.md)。
 - 任何写操作的恢复步骤：读 [references/rollback.md](references/rollback.md)。
@@ -112,6 +113,7 @@ description: 部署或排查两种已验证的自建 VPN：OpenVPN Access Server
 | Reality 一直 Error，Hysteria2 正常 | TCP 三次握手回程、端口占用、Reality 参数 |
 | 延迟绿色但网页或视频卡 | 固定大小传输、真实出口和当前节点 |
 | `ip.sb` 仍是家宽 | 模式、节点选择、系统代理/TUN |
+| 出口显示为目标国家，服务仍提示地区不支持 | 分别测 IPv4 和 IPv6 出口；对比仅 IPv4、仅 IPv6 和双栈域名的结果；域名由谁解析 |
 | 管理页或订阅打不开 | 完全退出未配置好的 TUN；核对 HTTP/HTTPS 和云防火墙 |
 
 ## 交付
